@@ -43,7 +43,6 @@ local function midi_event(data)
             local total_duration = clock_times[#clock_times] - clock_times[1]
             local average_duration_per_clock = total_duration / (#clock_times - 1)
             tempo = math.floor((60 / average_duration_per_clock) / 24 + 0.5) -- Round BPM to nearest integer
-            update_loop_end()
             redraw()
             clock_times = {} -- Reset clock times after calculating tempo
         end
@@ -129,25 +128,28 @@ function softcut_reset()
         softcut.pan(i, i == 1 and -1 or 1)
         softcut.rate(i, 1.0)
         softcut.loop(i, 1)
-        softcut.loop_start(i, 1)
+        softcut.loop_start(i, 0)
         softcut.loop_end(i, loop_duration)  -- Make sure this is set correctly outside the loop
-        softcut.position(i, 1)
+        softcut.position(i, 0)
         softcut.fade_time(i, 0.01)
         softcut.rec(i, 0)
         softcut.rec_level(i, 0)
         softcut.pre_level(i, 1.0)
-        softcut.play(i, 0)
+        softcut.level_input_cut(i, i, 1.0)
+
+        -- softcut.play(i, 0)
 
         -- Ensure the audio input is routed to Softcut
-        softcut.level_input_cut(1, i, 1.0)  -- Route input 1 to both buffers
-        softcut.level_input_cut(2, i, 1.0)  -- Assume stereo input
     end
+        -- softcut.level_input_cut(1, 1, 1.0)
+        -- softcut.level_input_cut(2, 2, 1.0)
 end
 
 
 function update_loop_end()
     loop_duration = 60 / tempo * 4 * bars  -- Calculate loop end based on current tempo and bars
     for i = 1, 2 do
+        softcut.loop_start(i, 0)
         softcut.loop_end(i, loop_duration)
     end
 end
@@ -212,11 +214,13 @@ function key(n, z)
 end
 
 function arm_recording()
+    update_loop_end()
     recording = true
     beat_count = 0
     for i = 1, 2 do
-        softcut.play(i, 1)  -- Ensure playback is enabled when recording starts
-        softcut.rec_level(i, 1.0)
+        adjust_crossfade() -- Update Softcut output level
+        softcut.position(i, 0)  -- Set playhead position to the start of the buffer
+        softcut.rec_level(i, 0.5)
         softcut.rec(i, 1)
         -- log setting rec level and rec to 1 for each channel
         print("Recording level set to 1 for channel " .. i)
@@ -229,10 +233,10 @@ end
 function stop_recording()
     recording = false
     for i = 1, 2 do
+        adjust_crossfade() -- Update Softcut output level
         softcut.rec(i, 0)
         softcut.rec_level(i, 0) -- Set rec_level back to 0
         softcut.play(i, 1)
-        adjust_crossfade() -- Update Softcut output level
     end
     -- print("Softcut parameters at end of recording:")
     -- softcut.poll(i)
