@@ -148,7 +148,7 @@ end
 function update_loop_end()
     loop_duration = 60 / tempo * 4 * bars  -- Calculate loop end based on current tempo and bars
     for i = 1, 2 do
-        softcut.loop_end(i, loop_duration * 48000)  -- Convert loop duration to sample frames
+        softcut.loop_end(i, loop_duration)
     end
 end
 
