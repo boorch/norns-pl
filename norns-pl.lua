@@ -14,6 +14,7 @@ local beat_count = 0             -- Global variable to keep track of the number 
 local current_beat_in_bar = 1    -- Track the current beat within a bar
 local arm_next_bar = false -- Flag to start recording at the next bar
 local loop_duration = 60 / tempo * 4 * bars  -- Calculate loop end based on current tempo and bars
+local loop_phase = false
 
 -- Setup MIDI
 local midi_device
@@ -75,16 +76,11 @@ function init()
     midi_device.event = midi_event
     redraw()
 
-    local update_metro = metro.init()
-    update_metro.event = function(stage)
-        update()
-    end
-    update_metro:start(1 / 60) -- Call update 30 times per second
+    softcut.phase_quant(1, 1 / 48000) -- Set phase quantization to one sample
+    softcut.event_phase(softcut_phase_callback)
+    softcut.poll_start_phase()
 end
 
-function update()
-    -- Placeholder for update tasks
-end
 
 -- Setup user control parameters
 function setup_params()
@@ -179,6 +175,10 @@ function redraw()
     screen.move(118, 60)
     screen.level(is_playing and (blink_phase and 15 or 5) or 15)
     screen.text(is_playing and ">" or "[]")
+    if loop_phase then
+        screen.move(60, 45) -- Position the "*" character above the first beat indicator
+        screen.text("*")
+    end
     screen.update()
 end
 
@@ -239,6 +239,13 @@ end
 function print_buffer_contents()
     local buffer_contents = softcut.buffer_read_mono(1, 1, 128)
     print(buffer_contents)
+end
+
+function softcut_phase_callback(voice, phase)
+    if voice == 1 then
+        loop_phase = phase < 0.01
+        redraw()
+    end
 end
 
 init()
