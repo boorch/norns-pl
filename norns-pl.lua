@@ -222,6 +222,8 @@ function arm_recording()
         print("Recording level set to 1 for channel " .. i)
         print("Recording set to 1 for channel " .. i)    
     end
+    -- print("Softcut parameters at start of recording:")
+    -- softcut.poll(i)
 end
 
 function stop_recording()
@@ -230,16 +232,12 @@ function stop_recording()
         softcut.rec(i, 0)
         softcut.rec_level(i, 0) -- Set rec_level back to 0
         softcut.play(i, 1)
+        adjust_crossfade() -- Update Softcut output level
     end
-    print_buffer_contents() -- Print buffer contents after recording
+    -- print("Softcut parameters at end of recording:")
+    -- softcut.poll(i)
 end
 
-
--- Function to print buffer contents
-function print_buffer_contents()
-    local buffer_contents = softcut.buffer_read_mono(1, 1, 128)
-    print(buffer_contents)
-end
 
 function softcut_phase_callback(voice, phase)
     if voice == 1 then
