@@ -15,6 +15,7 @@ local current_beat_in_bar = 1    -- Track the current beat within a bar
 local arm_next_bar = false -- Flag to start recording at the next bar
 local loop_duration = 60 / tempo * 4 * bars  -- Calculate loop end based on current tempo and bars
 local loop_phase = false
+local loop_phase_duration = 0
 
 -- Setup MIDI
 local midi_device
@@ -134,15 +135,11 @@ function softcut_reset()
         softcut.fade_time(i, 0.01)
         softcut.rec(i, 0)
         softcut.rec_level(i, 0)
-        softcut.pre_level(i, 1.0)
+        softcut.pre_level(i, 0)
         softcut.level_input_cut(i, i, 1.0)
-
-        -- softcut.play(i, 0)
-
-        -- Ensure the audio input is routed to Softcut
+        softcut.post_filter_fc(i, 20000) -- Set filter cutoff frequency to 20kHz to disable lowpass filter
+        softcut.pre_filter_fc(i, 20000)
     end
-        -- softcut.level_input_cut(1, 1, 1.0)
-        -- softcut.level_input_cut(2, 2, 1.0)
 end
 
 
@@ -191,6 +188,7 @@ function handle_blinking()
     clock.sleep(beat_duration)
     while is_playing do
         blink_phase = not blink_phase
+        loop_phase_duration = loop_phase_duration + 1
         redraw()
         clock.sleep(beat_duration * (blink_phase and 1 or 3))
     end
@@ -245,7 +243,12 @@ end
 
 function softcut_phase_callback(voice, phase)
     if voice == 1 then
-        loop_phase = phase < 0.01
+        if phase < 0.01 then
+            loop_phase = true
+            loop_phase_duration = 0
+        elseif loop_phase and loop_phase_duration >= 2 then
+            loop_phase = false
+        end
         redraw()
     end
 end
