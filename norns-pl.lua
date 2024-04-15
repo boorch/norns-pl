@@ -11,11 +11,14 @@ local clock_times = {}           -- Store times of MIDI clock messages for avera
 local num_clocks_to_average = 48 -- Number of MIDI clocks to average for BPM calculation
 local util = require 'util'
 local beat_count = 0             -- Global variable to keep track of the number of beats
-local current_beat_in_bar = 1    -- Track the current beat within a bar
+local current_beat_in_bar = 1    -- Track the current beat within a bar for beat indicator visualization
+local recording_beat_in_bar = 1  -- Track the current beat within a bar during recording
 local arm_next_bar = false -- Flag to start recording at the next bar
 local loop_duration = 60 / tempo * 4 * bars  -- Calculate loop end based on current tempo and bars
 local loop_phase = false
 local loop_phase_duration = 0
+local last_start_time = 0 -- Store the time of the last MIDI start message
+
 
 -- Setup MIDI
 local midi_device
@@ -27,8 +30,8 @@ local function midi_event(data)
         if #clock_times % 24 == 0 then
             if is_playing then
                 beat_count = beat_count + 1
-                current_beat_in_bar = beat_count % 4 + 1-- Adjusted to start from 0
-                if arm_next_bar and current_beat_in_bar == 1 then -- Adjusted to start recording on beat 0
+                recording_beat_in_bar = (beat_count - 1) % 4 + 1
+                if arm_next_bar and recording_beat_in_bar == 1 then -- Adjusted to start recording on beat 0
                     print("Arming recording...") -- Add this line
                     arm_recording()
                     arm_next_bar = false
@@ -48,7 +51,11 @@ local function midi_event(data)
             clock_times = {} -- Reset clock times after calculating tempo
         end
     elseif msg.type == "start" then
+        last_start_time = util.time() -- Store the time of the MIDI start message
         is_playing = true
+        for i = 1, 2 do
+            softcut.play(i, 1)  -- Start Softcut playing
+        end
         if not blinking_id then
             blinking_id = clock.run(handle_blinking)
         end
@@ -57,13 +64,26 @@ local function midi_event(data)
         is_playing = false
         recording = false
         beat_count = 0
+        recording_beat_in_bar = 1
         current_beat_in_bar = 1
+        for i = 1, 2 do
+            softcut.play(i, 0)  -- Stop Softcut playing
+            softcut.position(i, 0)  -- Set Softcut position to the start
+        end
         if blinking_id then
             clock.cancel(blinking_id)
             blinking_id = nil
         end
         redraw()
     end
+end
+
+
+function calculate_current_beat_in_bar()
+    local time_elapsed = util.time() - last_start_time -- Time elapsed since the last MIDI start message
+    local beat_duration = 60 / tempo -- Duration of one beat
+    local beat = math.floor(time_elapsed / beat_duration) % 4 + 1 -- Current beat within the bar
+    return beat
 end
 
 -- Initialize
@@ -188,7 +208,9 @@ function handle_blinking()
     clock.sleep(beat_duration)
     while is_playing do
         blink_phase = not blink_phase
-        loop_phase_duration = loop_phase_duration + 1
+        if blink_phase then
+            current_beat_in_bar = (current_beat_in_bar % 4) + 1
+        end
         redraw()
         clock.sleep(beat_duration * (blink_phase and 1 or 3))
     end
